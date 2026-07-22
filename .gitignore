@@ -1,0 +1,41 @@
+# Vivado / Vitis temporary files & logs
+.Xil/
+*.log
+*.jou
+*.pb
+*.str
+*.cache/
+*.hw/
+*.sim/
+*.runs/
+*.gen/
+*.ip_user_files/
+*.tmp/
+*.xsa
+
+# VCS / Verdi / Simulation output files
+sim/simv*
+sim/csrc/
+sim/*.key
+sim/*.log
+sim/*.fsdb
+sim/novas*
+sim/*.conf
+sim/*.LOG
+sim/coverage.*
+sim/vdCovLog/
+sim/verdiLog/
+sim/*.xml
+sim/ucli.key
+sim/inter.fsdb*
+
+# Vitis / C project build outputs
+sw/Debug/
+sw/Release/
+sw/*.elf
+sw/*.o
+
+# OS / IDE files
+.DS_Store
+Thumbs.db
+.vscode/
