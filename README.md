@@ -1,29 +1,31 @@
+
 # ⚡ AXI Lite SPI System & UVM Verification IP
 
-[![SystemVerilog](https://img.shields.io/badge/Language-SystemVerilog-blue.svg)](https://en.wikipedia.org/wiki/SystemVerilog)
-[![UVM](https://img.shields.io/badge/Verification-UVM%201.2-brightgreen.svg)](https://www.accellera.org/downloads/standards/uvm)
-[![Simulator](https://img.shields.io/badge/Simulator-Synopsys%20VCS%20%7C%20Verdi-red.svg)](https://www.synopsys.com/)
-[![FPGA](https://img.shields.io/badge/FPGA-Xilinx%20Basys--3-orange.svg)](https://digilent.com/reference/programmable-logic/basys-3/start)
-
-AXI4-Lite 기반의 **SPI Master Controller IP**, **SPI Slave 디바이스**, **UVM 1.2 검증 환경**, 그리고 **Vitis/MicroBlaze C/C++ 펌웨어 드라이버**를 포함하는 Full-Stack SoC Peripheral IP 및 Verification 프로젝트입니다.
+AXI4-Lite 기반의 **SPI Master Controller IP**, **SPI Slave 디바이스**, **UVM 1.2 검증 환경**, 그리고 **STM32 MCU / MicroBlaze 연동용 C/C++ 펌웨어 드라이버**를 포함하는 Full-Stack SoC Peripheral IP 및 Verification 프로젝트입니다.
 
 ---
 
 ## 🚀 Key Features
 
-- **AXI4-Lite Interface**: 32-bit AXI4-Lite 슬레이브 버스 인터페이스 제공
-- **Configurable SPI Core**:
-  - Programmable Clock Divider (`clk_div`)
-  - Configurable SPI Modes (`CPOL`, `CPHA` 설정 가능)
-  - Full-Duplex 8-bit Data Transfer
-  - CS (Chip Select) & Bus Busy/Done Status Monitoring
-- **Complete UVM Verification Environment**:
-  - UVM Agent (Driver, Monitor, Sequencer)
-  - Comprehensive Scoreboard & Functional Coverage (`covergroup`)
-  - Transaction-Level Modeling (TLM 1.0) 기반 검증
-- **FPGA & Embedded SW Support**:
-  - Xilinx Basys-3 Board Constraint (`Basys-3-Master.xdc`) 및 7-Segment FND Display Controller 포함
-  - Vitis C/C++ Bare-metal/HAL Hardware Driver 및 Application S/W 제공
+* **AXI4-Lite Interface**: 32-bit AXI4-Lite 슬레이브 버스 인터페이스 제공
+* **Configurable SPI Core**:
+* Programmable Clock Divider (`clk_div`)
+* Configurable SPI Modes (`CPOL`, `CPHA` 설정 가능)
+* Full-Duplex 8-bit Data Transfer
+* CS (Chip Select) & Bus Busy/Done Status Monitoring
+
+
+* **Complete UVM Verification Environment**:
+* UVM Agent (Driver, Monitor, Sequencer)
+* Comprehensive Scoreboard & Functional Coverage (`covergroup`)
+* Transaction-Level Modeling (TLM 1.0) 기반 검증
+
+
+* **FPGA & Embedded SW Support**:
+* **STM32 MCU (ARM Cortex-M) 및 MicroBlaze 기반 C/C++ Bare-metal/HAL 펌웨어 드라이버 제공**
+* Xilinx Basys-3 Board Constraint (`Basys-3-Master.xdc`) 및 7-Segment FND Display Controller 포함
+
+
 
 ---
 
@@ -32,7 +34,7 @@ AXI4-Lite 기반의 **SPI Master Controller IP**, **SPI Slave 디바이스**, **
 ```mermaid
 graph TD
     subgraph Host System / Testbench
-        A[AXI Host / UVM Testbench]
+        A[AXI Host / UVM Testbench / STM32 MCU]
     end
 
     subgraph AXI SPI Master IP
@@ -51,6 +53,7 @@ graph TD
 
     A <== AXI Bus ==> AXI
     SPIM <== SCLK / MOSI / MISO / CS_N ==> SPIS
+
 ```
 
 ---
@@ -58,14 +61,14 @@ graph TD
 ## 📋 Register Map
 
 | Offset | Register Name | R/W | Bit Field | Description |
-| :---: | :---: | :---: | :---: | :--- |
+| --- | --- | --- | --- | --- |
 | `0x00` | **TX_DATA** | W/R | `[7:0]` | SPI Transmit Data Byte |
 | `0x04` | **CONTROL** | W/R | `[0]` | **Start Trigger** (Rising edge pulse launches transmission) |
-| | | | `[1]` | **CPOL** (Clock Polarity: 0 = Idle Low, 1 = Idle High) |
-| | | | `[2]` | **CPHA** (Clock Phase: 0 = 1st Edge, 1 = 2nd Edge Sampling) |
-| | | | `[15:8]` | **CLK_DIV** (SCLK Prescaler Dividend) |
+|  |  |  | `[1]` | **CPOL** (Clock Polarity: 0 = Idle Low, 1 = Idle High) |
+|  |  |  | `[2]` | **CPHA** (Clock Phase: 0 = 1st Edge, 1 = 2nd Edge Sampling) |
+|  |  |  | `[15:8]` | **CLK_DIV** (SCLK Prescaler Dividend) |
 | `0x08` | **STATUS** | R | `[0]` | **Busy Flag** (1 = SPI Transmission in progress) |
-| | | | `[1]` | **Done Flag** (1 = Transmission Completed, latched) |
+|  |  |  | `[1]` | **Done Flag** (1 = Transmission Completed, latched) |
 | `0x0C` | **RX_DATA** | R | `[7:0]` | SPI Received Data Byte |
 
 ---
@@ -95,9 +98,10 @@ graph TD
 │   │   ├── axi_spi_coverage.sv   # Functional Coverage
 │   │   └── axi_spi_test.sv       # Test Case Suite
 │   └── sim/          # VCS / Verdi Sim Suite (Makefile, filelist.f)
-└── sw/               # Firmware & Software Drivers (Vitis C/C++)
+└── sw/               # Firmware & Software Drivers (C/C++)
     ├── ap/           # Application Main Entry (ap_main.c)
-    └── driver/       # Peripheral Drivers
+    └── driver/       # STM32 HAL / MicroBlaze Register Access Driver (.c, .h)
+
 ```
 
 ---
@@ -118,19 +122,22 @@ make verdi
 
 # 3. 임시 시뮬레이션 파일 정리
 make clean
+
 ```
 
 ---
 
 ## 💻 Firmware & Software Driver (`sw/`)
 
-Xilinx MicroBlaze 또는 ARM Cortex 코어에서 AXI SPI IP를 직접 제어하기 위한 C/C++ 드라이버 샘플을 제공합니다.
+**STM32 MCU (ARM Cortex-M)** 및 Xilinx MicroBlaze 환경에서 C 언어로 AXI SPI IP 레지스터를 직접 제어하기 위한 드라이버 스택을 포함합니다.
 
-- `sw/ap/ap_main.c`: SPI 마스터를 통한 데이터 송수신 애플리케이션
-- `sw/driver/`: AXI Register 제어를 단순화하는 HAL (Hardware Abstraction Layer)
+* `sw/ap/ap_main.c`: C 언어 기반 SPI 제어 및 데이터 송수신 메인 루프
+* `sw/driver/`: STM32 HAL 스타일 Register Abstraction Layer (.c / .h)
 
 ---
 
-## 📜 License
+## 👨‍💻 Author
 
-This project is open-source under the MIT License.
+- **GitHub**: [@ethan000106](https://github.com/ethan000106)
+
+---
