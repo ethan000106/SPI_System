@@ -1,143 +1,184 @@
+# 🔌 AXI4-Lite SPI Master IP — MicroBlaze SoC Integration
 
-# ⚡ AXI Lite SPI System & UVM Verification IP
+[![Language](https://img.shields.io/badge/Language-SystemVerilog-blue.svg)]()
+[![Bus](https://img.shields.io/badge/Bus-AMBA%20AXI4--Lite-yellow.svg)]()
+[![EDA Tools](https://img.shields.io/badge/EDA-Xilinx%20Vivado-red.svg)]()
+[![Target Board](https://img.shields.io/badge/FPGA-Digilent%20Basys%203%20(Artix--7)-orange.svg)]()
 
-AXI4-Lite 기반의 **SPI Master Controller IP**, **SPI Slave 디바이스**, **UVM 1.2 검증 환경**, 그리고 **STM32 MCU / MicroBlaze 연동용 C/C++ 펌웨어 드라이버**를 포함하는 Full-Stack SoC Peripheral IP 및 Verification 프로젝트입니다.
-
----
-
-## 🚀 Key Features
-
-* **AXI4-Lite Interface**: 32-bit AXI4-Lite 슬레이브 버스 인터페이스 제공
-* **Configurable SPI Core**:
-* Programmable Clock Divider (`clk_div`)
-* Configurable SPI Modes (`CPOL`, `CPHA` 설정 가능)
-* Full-Duplex 8-bit Data Transfer
-* CS (Chip Select) & Bus Busy/Done Status Monitoring
-
-
-* **Complete UVM Verification Environment**:
-* UVM Agent (Driver, Monitor, Sequencer)
-* Comprehensive Scoreboard & Functional Coverage (`covergroup`)
-* Transaction-Level Modeling (TLM 1.0) 기반 검증
-
-
-* **FPGA & Embedded SW Support**:
-* **STM32 MCU (ARM Cortex-M) 및 MicroBlaze 기반 C/C++ Bare-metal/HAL 펌웨어 드라이버 제공**
-* Xilinx Basys-3 Board Constraint (`Basys-3-Master.xdc`) 및 7-Segment FND Display Controller 포함
-
-
+> **SPI Master를 AMBA AXI4-Lite 슬레이브 IP로 패키징해 MicroBlaze SoC에 통합하고, Basys 3 두 보드 간 SPI 통신을 구현한 프로젝트**
+> 기존 APB 기반 SPI 설계를 AXI 버스로 확장하여 AXI Master/Slave 핸드셰이크 FSM 설계부터 Vivado IP 통합, FPGA 보드 구동까지 수행했습니다.
 
 ---
 
-## 🏛️ System Architecture
-
-```mermaid
-graph TD
-    subgraph Host System / Testbench
-        A[AXI Host / UVM Testbench / STM32 MCU]
-    end
-
-    subgraph AXI SPI Master IP
-        AXI[AXI4-Lite Slave Interface]
-        REG["Register File<br/>(0x00, 0x04, 0x08, 0x0C)"]
-        SPIM[SPI Master FSM Core]
-        AXI <--> REG
-        REG <--> SPIM
-    end
-
-    subgraph SPI Slave Device / Board
-        SPIS[SPI Slave Module]
-        FND[7-Segment FND Display Controller]
-        SPIS --> FND
-    end
-
-    A <== AXI Bus ==> AXI
-    SPIM <== SCLK / MOSI / MISO / CS_N ==> SPIS
-
-```
+## 📋 Table of Contents
+1. [Project Overview](#-project-overview)
+2. [Background: SPI, AXI](#-background-spi-axi)
+3. [System Architecture](#-system-architecture)
+4. [FPGA Implementation](#-fpga-implementation)
+5. [Troubleshooting](#-troubleshooting)
+6. [Lessons Learned](#-lessons-learned)
 
 ---
 
-## 📋 Register Map
+## 📌 Project Overview
 
-| Offset | Register Name | R/W | Bit Field | Description |
-| --- | --- | --- | --- | --- |
-| `0x00` | **TX_DATA** | W/R | `[7:0]` | SPI Transmit Data Byte |
-| `0x04` | **CONTROL** | W/R | `[0]` | **Start Trigger** (Rising edge pulse launches transmission) |
-|  |  |  | `[1]` | **CPOL** (Clock Polarity: 0 = Idle Low, 1 = Idle High) |
-|  |  |  | `[2]` | **CPHA** (Clock Phase: 0 = 1st Edge, 1 = 2nd Edge Sampling) |
-|  |  |  | `[15:8]` | **CLK_DIV** (SCLK Prescaler Dividend) |
-| `0x08` | **STATUS** | R | `[0]` | **Busy Flag** (1 = SPI Transmission in progress) |
-|  |  |  | `[1]` | **Done Flag** (1 = Transmission Completed, latched) |
-| `0x0C` | **RX_DATA** | R | `[7:0]` | SPI Received Data Byte |
+* **목표**: SPI Master를 AXI4-Lite 슬레이브 IP로 만들고, MicroBlaze 소프트웨어(C)에서 레지스터 맵을 통해 제어하는 SoC 구성.
+* **팀**: 2인 (강혜빈, 윤정원)
+* **구성 요소**
 
----
-
-## 📁 Repository Structure
-
-```text
-.
-├── docs/             # 프로젝트 문서 및 사양서 (Block diagram, Spec document 등)
-├── include/          # 공통 헤더 파일 (.svh, .h)
-├── rtl/              # RTL 소스 코드
-│   ├── axi_spi_m_v1_0.v          # Top Module (AXI4-Lite SPI Master)
-│   ├── axi_spi_m_v1_0_S00_AXI.v  # AXI-Lite Reg Logic + SPI Master FSM Core
-│   ├── SPI_slave.sv              # SPI Slave Peripheral Block
-│   ├── Top_Slave.sv              # Slave Board Top Level Module
-│   ├── fnd_controller_direct.sv  # 7-Segment FND Display Controller
-│   └── constrs/                  # FPGA Constraint (Basys-3-Master.xdc)
-├── sim/              # 기본 시뮬레이션 환경
-├── uvm/              # UVM 1.2 Verification Suite
-│   ├── tb/           # Top Testbench (tb_top.sv, axi_spi_interface.sv)
-│   ├── env/          # UVM Components & Packages
-│   │   ├── axi_spi_pkg.sv        # UVM Package Definition
-│   │   ├── axi_spi_item.sv       # UVM Sequence Item
-│   │   ├── axi_spi_driver.sv     # AXI Driver
-│   │   ├── axi_spi_monitor.sv    # AXI Monitor
-│   │   ├── axi_spi_scoreboard.sv # Scoreboard for Checking
-│   │   ├── axi_spi_coverage.sv   # Functional Coverage
-│   │   └── axi_spi_test.sv       # Test Case Suite
-│   └── sim/          # VCS / Verdi Sim Suite (Makefile, filelist.f)
-└── sw/               # Firmware & Software Drivers (C/C++)
-    ├── ap/           # Application Main Entry (ap_main.c)
-    └── driver/       # STM32 HAL / MicroBlaze Register Access Driver (.c, .h)
-
-```
+| 구분 | 역할 | 사용 IP |
+| :--- | :--- | :--- |
+| **SPI** | SPI Master (`cs_n`, `sclk`, `mosi`, `miso`) | `SPI1.0.v` (패키징 IP) |
+| **GPIO** | 버튼 / 스위치 입력, FND 출력 | `GPIO1.0.v` (패키징 IP) |
+| **UART** | PC ↔ FPGA 메시지, 로그 출력 | `axi_uartlite` |
 
 ---
 
-## 🧪 UVM Verification Workflow
+## 📚 Background: SPI, AXI
 
-Synopsys **VCS** 및 **Verdi** 도구를 사용하여 UVM 1.2 기반의 자동화 검증을 실행할 수 있습니다.
+### SPI
 
-```bash
-# UVM 시뮬레이션 디렉토리 이동
-cd uvm/sim
+| Mode | CPOL | CPHA | 설명 |
+| :---: | :---: | :---: | :--- |
+| 0 | 0 | 0 | 평상시 Low, **상승** 엣지(Rising)에서 데이터 샘플링 |
+| 1 | 0 | 1 | 평상시 Low, **하강** 엣지(Falling)에서 데이터 샘플링 |
+| 2 | 1 | 0 | 평상시 High, **하강** 엣지(Falling)에서 데이터 샘플링 |
+| 3 | 1 | 1 | 평상시 High, **상승** 엣지(Rising)에서 데이터 샘플링 |
 
-# 1. UVM 컴파일 및 시뮬레이션 실행
-make sim
+* **Full-Duplex**: 동시 송수신 가능
+* **인터페이스 4선**: `SCLK`, `MOSI`, `MISO`, `SS`
+* CPOL, CPHA 설정에 따라 Mode 0–3의 4가지 조합 지원
 
-# 2. Verdi GUI 로 파형(Waveform) 분석
-make verdi
+### AXI (AMBA AXI4)
 
-# 3. 임시 시뮬레이션 파일 정리
-make clean
+| 특징 | 설명 |
+| :--- | :--- |
+| 모듈형 IP 통합 | 표준화된 AXI 인터페이스를 사용해 IP를 플랫폼에 통합 |
+| 병렬 처리 | **5개의 독립 채널** 활용 |
+| 통신 효율 | **READ / WRITE 채널 분리** |
+| 핸드셰이크 | `VALID` / `READY` 프로토콜 |
 
-```
+| Channel | 방향 | 설명 |
+| :--- | :--- | :--- |
+| **Write Address (AW)** | Master → Slave | 쓸 주소와 제어 정보 전송 |
+| **Write Data (W)** | Master → Slave | 기록할 데이터 전송 |
+| **Write Response (B)** | Slave → Master | 데이터 수신 및 쓰기 완료 후 성공 여부 전달 |
+| **Read Address (AR)** | Master → Slave | 읽어올 주소와 제어 정보 전송 |
+| **Read Data (R)** | Slave → Master | 요청받은 주소에서 읽은 데이터를 Master로 전송 |
+
+**VALID & READY 핸드셰이크**의 장점
+
+* 두 신호가 모두 1일 때만 데이터가 전달되므로 **데이터 유실이 없음**.
+* 장치 간 속도 차이가 있어도 오류 없이 통신 가능.
+* 서로의 신호를 확인하고 진행하므로 **Deadlock 방지**.
+
+<p align="center">
+  <img src="docs/axi_handshake_timing.png" alt="AXI handshake timing (T0 - T4)" width="45%">
+</p>
+
+| 시점 | 동작 |
+| :---: | :--- |
+| T0 | 시스템 초기 상태 |
+| T1 | Source 준비 및 전송 시작 (`VALID` 상승) |
+| T2 | Destination이 신호를 인지하고 `READY` 준비 |
+| T3 | **Handshake 발생** (데이터 전송 완료) |
+| T4 | 전송 종료 및 `IDLE` 복귀 |
 
 ---
 
-## 💻 Firmware & Software Driver (`sw/`)
+## 🧩 System Architecture
 
-**STM32 MCU (ARM Cortex-M)** 및 Xilinx MicroBlaze 환경에서 C 언어로 AXI SPI IP 레지스터를 직접 제어하기 위한 드라이버 스택을 포함합니다.
+### 1. AXI4-Lite Master / Slave FSM
 
-* `sw/ap/ap_main.c`: C 언어 기반 SPI 제어 및 데이터 송수신 메인 루프
-* `sw/driver/`: STM32 HAL 스타일 Register Abstraction Layer (.c / .h)
+CPU 측 사용자 인터페이스(`transfer`, `ready`, `addr`, `wdata`, `write`, `rdata`)를 AXI4-Lite 채널 신호로 변환하는 **Master**와 레지스터 블록을 가진 **Slave**를 FSM으로 설계했습니다. Write(AW → W → B)와 Read(AR → R) 트랜잭션을 각각 독립된 상태 머신으로 구성했습니다.
+
+<p align="center">
+  <img src="docs/axi_fsm.png" alt="AXI4-Lite master write/read transaction FSM" width="65%">
+</p>
+
+<p align="center">
+  <img src="docs/axi_master_slave_interface.png" alt="CPU - AXI4-Lite master - AXI4-Lite slave" width="75%">
+  <img src="docs/axi_tester_block.png" alt="AXI4-Lite master/slave block diagram with tester" width="75%">
+</p>
+
+### 2. SoC Block Diagram
+
+MicroBlaze가 AXI Interconnect를 통해 각 주변장치를 제어합니다. SPI Master IP는 AXI Slave 내부에 `cfg_reg`, `w_reg`, `r_reg` 레지스터를 두고 SPI Master를 구동합니다.
+
+<p align="center">
+  <img src="docs/system_block_diagram.png" alt="MicroBlaze - AXI Interconnect - SPI / GPIO" width="60%">
+</p>
+
+<p align="center">
+  <img src="docs/spi_master_connection.png" alt="AXI4 SPI master to slave SPI device" width="60%">
+</p>
+
+### 3. Memory Map (Memory-Mapped I/O)
+
+주변장치는 `0x44A0_0000`부터 `64 KB` 간격으로 배치됩니다.
+
+| 주소 | 장치 |
+| :---: | :---: |
+| `0x44A0_0000` | SPI |
+| `0x44A1_0000` | GPIO0 |
+| `0x44A2_0000` | GPIO1 |
+| `0x44A3_0000` | GPIO2 |
+| `0x44A4_0000` | GPIO3 |
+
+<p align="center">
+  <img src="docs/memory_map_spi.png" alt="Memory map (SPI version)" width="50%">
+</p>
+
+### 4. Software Layered Architecture
+
+하위 모듈을 세분화한 계층 구조로 MicroBlaze 소프트웨어를 구성했습니다.
+
+<p align="center">
+  <img src="docs/layered_architecture.png" alt="Application / Driver / HAL / HW layers" width="55%">
+</p>
+
+| Layer | 구성 |
+| :--- | :--- |
+| **Application** | I2C, SPI 등 |
+| **Driver** | FND, BTN, LED, COMMON |
+| **HAL** | GPIO, TIM |
+| **HW** | FND, BUTTON, LED |
+
+---
+
+## 🎬 FPGA Implementation
+
+### SPI — Master / Slave 2-Board Test (Basys 3 × 2)
+
+* 마스터 보드에서 `write(count)`를 수행하면 슬레이브 보드의 FND에 값이 표시되고, 카운트가 9를 넘으면 0으로 초기화되는 동작을 확인.
+* 슬레이브 보드의 스위치 값에 따라 마스터가 `led read`로 값을 읽어 LED에 반영.
+
+<p align="center">
+  <img src="docs/demo_spi_write.png" alt="SPI master write(count) to slave FND" width="48%">
+  <img src="docs/demo_spi_read.png" alt="SPI master reads LED according to slave switches" width="48%">
+</p>
+
+> ▶ **[SPI 구현 영상 보기](docs/implementation_spi.mp4)**
+
+---
+
+## 🔧 Troubleshooting
+
+| # | 문제 현상 (Issue) | 원인 및 해결 |
+| --- | --- | --- |
+| **1** | **`edge_detector` 오류** | _(원인 및 해결 과정을 직접 작성해 주세요)_ |
+| **2** | **Slave timing 오류** | _(원인 및 해결 과정을 직접 작성해 주세요)_ |
+
+---
+
+## 💡 Lessons Learned
+
+* UVM은 class 개념과 Synopsys 툴이 낯설었지만, 반복하면서 환경 구조(agent, scoreboard, coverage)를 이해하게 되었습니다.
+* APB에서 AXI로 넘어가면서 신호 수와 고려할 사항(채널 분리, 핸드셰이크)이 크게 늘었습니다.
+* 소프트웨어(MicroBlaze C)를 통한 동작 확인이 가장 어려웠고, C/Python 학습을 통해 보완할 계획입니다.
 
 ---
 
 ## 👨‍💻 Author
 
 - **GitHub**: [@ethan000106](https://github.com/ethan000106)
-
----
